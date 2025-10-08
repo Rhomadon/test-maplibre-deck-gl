@@ -11,6 +11,8 @@ interface PointData {
   lng: number
   lat: number
   value: number
+  targetLng?: number
+  targetLat?: number
 }
 
 function generateRandomPoints(count: number, bbox = [106.6, -6.3, 106.9, -6.0]): PointData[] {
@@ -23,11 +25,28 @@ function generateRandomPoints(count: number, bbox = [106.6, -6.3, 106.9, -6.0]):
   }))
 }
 
+function getRandomTarget(lng: number, lat: number, distanceMeters = 100) {
+  const earthRadius = 6378137
+  const dLat = (Math.random() - 0.5) * (distanceMeters / earthRadius) * 2
+  const dLng =
+    (Math.random() - 0.5) *
+    (distanceMeters / (earthRadius * Math.cos((lat * Math.PI) / 180))) *
+    2
+
+  return {
+    lng: lng + (dLng * 180) / Math.PI,
+    lat: lat + (dLat * 180) / Math.PI,
+  }
+}
+
 export default function RealtimeMapDemo() {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Map | null>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
   const [data, setData] = useState<PointData[]>(() => generateRandomPoints(100000))
+
+  const animationRef = useRef<number | null>(null)
+  const lastTargetTimeRef = useRef<number>(0)
 
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -39,9 +58,7 @@ export default function RealtimeMapDemo() {
         sources: {
           "google-tiles": {
             type: "raster",
-            tiles: [
-              "https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-            ],
+            tiles: ["https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"],
             tileSize: 256,
           },
         },
@@ -59,7 +76,6 @@ export default function RealtimeMapDemo() {
     })
 
     ;(map as any).antialias = true
-
     mapRef.current = map
 
     map.on("load", () => {
@@ -74,7 +90,6 @@ export default function RealtimeMapDemo() {
             getRadius: 20,
             radiusMinPixels: 1,
             radiusMaxPixels: 30,
-            pickable: false,
           }),
         ],
       })
@@ -93,16 +108,37 @@ export default function RealtimeMapDemo() {
   }, [])
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const animate = () => {
+      const now = performance.now()
+      const delta = now - lastTargetTimeRef.current
+
+      if (delta > 1000) {
+        setData(prev =>
+          prev.map(p => {
+            const { lng, lat } = getRandomTarget(p.lng, p.lat, 100)
+            return { ...p, targetLng: lng, targetLat: lat }
+          })
+        )
+        lastTargetTimeRef.current = now
+      }
+
       setData(prev =>
-        prev.map(p => ({
-          ...p,
-          lng: p.lng + (Math.random() - 0.5) * 0.0003,
-          lat: p.lat + (Math.random() - 0.5) * 0.0003,
-        }))
+        prev.map(p => {
+          if (p.targetLng == null || p.targetLat == null) return p
+          const lerpFactor = 0.03
+          const newLng = p.lng + (p.targetLng - p.lng) * lerpFactor
+          const newLat = p.lat + (p.targetLat - p.lat) * lerpFactor
+          return { ...p, lng: newLng, lat: newLat }
+        })
       )
-    }, 1000)
-    return () => clearInterval(interval)
+
+      animationRef.current = requestAnimationFrame(animate)
+    }
+
+    animationRef.current = requestAnimationFrame(animate)
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -117,6 +153,7 @@ export default function RealtimeMapDemo() {
       radiusMinPixels: 1,
       radiusMaxPixels: 30,
       pickable: false,
+      updateTriggers: { getPosition: data },
     })
 
     overlayRef.current.setProps({ layers: [layer] })
@@ -124,7 +161,7 @@ export default function RealtimeMapDemo() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent">
-      <div className="w-full h-screen rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-transparent">
+      <div className="w-full h-screen rounded-lg overflow-hidden shadow-lg bg-transparent">
         <div ref={mapContainerRef} className="w-full h-full bg-transparent" />
       </div>
     </div>
