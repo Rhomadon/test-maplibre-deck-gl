@@ -13,7 +13,7 @@ interface PointData {
   value: number
 }
 
-function generateRandomPoints(count: number, bbox = [94.9, -10.0, 139.0, 4.5]): PointData[] {
+function generateRandomPoints(count: number, bbox = [106.6, -6.3, 106.9, -6.0]): PointData[] {
   const [minLng, minLat, maxLng, maxLat] = bbox
   return Array.from({ length: count }, (_, i) => ({
     id: i,
@@ -27,7 +27,7 @@ export default function RealtimeMapDemo() {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Map | null>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
-  const [data, setData] = useState<PointData[]>(() => generateRandomPoints(50000))
+  const [data, setData] = useState<PointData[]>(() => generateRandomPoints(100000))
 
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -43,7 +43,6 @@ export default function RealtimeMapDemo() {
               "https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
             ],
             tileSize: 256,
-            attribution: "&copy; <a href='https://www.google.com/'>Google Maps</a>",
           },
         },
         layers: [
@@ -56,9 +55,10 @@ export default function RealtimeMapDemo() {
       },
       center: [106.8, -6.2],
       zoom: 11,
-      // ;(antialias as any): true,
       attributionControl: false,
     })
+
+    ;(map as any).antialias = true
 
     mapRef.current = map
 
@@ -123,24 +123,9 @@ export default function RealtimeMapDemo() {
   }, [data])
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
-    >
-      <div
-        style={{
-          width: "100%",
-          height: "100vh",
-          borderRadius: 8,
-          overflow: "hidden",
-          background: "transparent",
-          boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-        }}
-      >
-        <div
-          ref={mapContainerRef}
-          style={{ width: "100%", height: "100%", background: "transparent" }}
-        />
+    <div className="flex min-h-screen items-center justify-center bg-transparent">
+      <div className="w-full h-screen rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-transparent">
+        <div ref={mapContainerRef} className="w-full h-full bg-transparent" />
       </div>
     </div>
   )
